@@ -12,11 +12,11 @@ PRIMARY_COLOR = "#2196f3"  # Material Blue 500
 SECONDARY_COLOR = "#f5f5f5"  # Light Gray
 LINK_COLOR = "#1e88e5"  # Material Blue 600
 
-def get_repositories(query):
+def get_repositories(query, sort_by):
     url = 'https://api.github.com/search/repositories'
     params = {
         'q': query,
-        'sort': 'stars',
+        'sort': sort_by,
         'order': 'desc'
     }
 
@@ -39,15 +39,14 @@ def get_repositories(query):
                 'watchers': item['watchers']
             }
             repositories.append(repository)
-        
-        repositories = sorted(repositories, key=lambda x: x['stars'], reverse=True)
+
         return repositories
     else:
         return None
 
-def perform_search():
+def perform_search(sort_by=None):
     query = entry.get()
-    repositories = get_repositories(query)
+    repositories = get_repositories(query, sort_by)
     result_text.config(state="normal")
     result_text.delete(1.0, tk.END)
     if repositories:
@@ -107,8 +106,15 @@ entry = ttk.Entry(content_frame)
 entry.grid(row=0, column=1, sticky="we", pady=10, padx=10)
 
 # Create a button to perform the search
-button = ttk.Button(content_frame, text='Search', command=perform_search)
+button = ttk.Button(content_frame, text='Search', command=lambda: perform_search())
 button.grid(row=0, column=2, sticky="e", pady=10, padx=10)
+
+# Create buttons for sorting
+sort_latest_button = ttk.Button(content_frame, text='Sort by Latest Update', command=lambda: perform_search('updated'))
+sort_latest_button.grid(row=2, column=0, sticky="w", pady=10, padx=10)
+
+sort_stars_button = ttk.Button(content_frame, text='Sort by Most Stars', command=lambda: perform_search('stars'))
+sort_stars_button.grid(row=2, column=1, sticky="w", pady=10, padx=10)
 
 # Create a text widget to display the results
 result_text = tk.Text(content_frame, wrap="word", state="disabled", font=(FONT_FAMILY, FONT_SIZE))
