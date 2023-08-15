@@ -33,7 +33,8 @@ def get_repositories(query, sort_by):
             'owner': item['owner']['login'],
             'created_at': item['created_at'],
             'forks': item['forks'],
-            'watchers': item['watchers']
+            'watchers': item['watchers'],
+            'license': item['license']
         } for item in data['items']]
 
         return repositories
@@ -57,6 +58,8 @@ def perform_search(sort_by=None):
             created_at = repository['created_at']
             forks = repository['forks']
             watchers = repository['watchers']
+            license = repository['license']
+            
 
             result_text.insert(tk.END, f'Title: {title}\n')
             result_text.insert(tk.END, f'Description: {description}\n')
@@ -66,6 +69,7 @@ def perform_search(sort_by=None):
             result_text.insert(tk.END, f'Created at: {created_at}\n')
             result_text.insert(tk.END, f'Forks: {forks}\n')
             result_text.insert(tk.END, f'Watchers: {watchers}\n')
+            result_text.insert(tk.END, f'License: {license}\n')
 
             label = tk.Label(result_text, text='Open in Browser', fg=LINK_COLOR, cursor="hand2", font=(FONT_FAMILY, FONT_SIZE, "bold"))
             label.bind("<Button-1>", lambda event, url=html_url: webbrowser.open_new_tab(url))
