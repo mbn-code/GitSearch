@@ -24,21 +24,17 @@ def get_repositories(query, sort_by):
     data = response.json()
 
     if response.status_code == 200:
-        repositories = []
-        items = data['items']
-        for item in items:
-            repository = {
-                'title': item['name'],
-                'html_url': item['html_url'],
-                'description': item['description'],
-                'stars': item['stargazers_count'],
-                'language': item['language'],
-                'owner': item['owner']['login'],
-                'created_at': item['created_at'],
-                'forks': item['forks'],
-                'watchers': item['watchers']
-            }
-            repositories.append(repository)
+        repositories = [{
+            'title': item['name'],
+            'html_url': item['html_url'],
+            'description': item['description'],
+            'stars': item['stargazers_count'],
+            'language': item['language'],
+            'owner': item['owner']['login'],
+            'created_at': item['created_at'],
+            'forks': item['forks'],
+            'watchers': item['watchers']
+        } for item in data['items']]
 
         return repositories
     else:
@@ -128,3 +124,4 @@ content_frame.rowconfigure(1, weight=1)
 
 # Start the main loop
 window.mainloop()
+
