@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 import requests
+import threading
 
 # Font settings
 FONT_FAMILY = "Helvetica"
@@ -43,41 +44,45 @@ def get_repositories(query, sort_by):
 
 def perform_search(sort_by=None):
     query = entry.get()
-    repositories = get_repositories(query, sort_by)
-    result_text.config(state="normal")
-    result_text.delete(1.0, tk.END)
-    if repositories:
-        result_text.insert(tk.END, 'Repositories based on your search:\n\n')
-        for repository in repositories:
-            title = repository['title']
-            html_url = repository['html_url']
-            description = repository['description']
-            stars = repository['stars']
-            language = repository['language']
-            owner = repository['owner']
-            created_at = repository['created_at']
-            forks = repository['forks']
-            watchers = repository['watchers']
-            license = repository['license']
-            
+    
+    def search_and_update():
+        repositories = get_repositories(query, sort_by)
+        result_text.config(state="normal")
+        result_text.delete(1.0, tk.END)
+        if repositories:
+            result_text.insert(tk.END, 'Repositories based on your search:\n\n')
+            for repository in repositories:
+                title = repository['title']
+                html_url = repository['html_url']
+                description = repository['description']
+                stars = repository['stars']
+                language = repository['language']
+                owner = repository['owner']
+                created_at = repository['created_at']
+                forks = repository['forks']
+                watchers = repository['watchers']
+                license = repository['license']
 
-            result_text.insert(tk.END, f'Title: {title}\n')
-            result_text.insert(tk.END, f'Description: {description}\n')
-            result_text.insert(tk.END, f'Stars: {stars}\n')
-            result_text.insert(tk.END, f'Language: {language}\n')
-            result_text.insert(tk.END, f'Owner: {owner}\n')
-            result_text.insert(tk.END, f'Created at: {created_at}\n')
-            result_text.insert(tk.END, f'Forks: {forks}\n')
-            result_text.insert(tk.END, f'Watchers: {watchers}\n')
-            result_text.insert(tk.END, f'License: {license}\n')
+                result_text.insert(tk.END, f'Title: {title}\n')
+                result_text.insert(tk.END, f'Description: {description}\n')
+                result_text.insert(tk.END, f'Stars: {stars}\n')
+                result_text.insert(tk.END, f'Language: {language}\n')
+                result_text.insert(tk.END, f'Owner: {owner}\n')
+                result_text.insert(tk.END, f'Created at: {created_at}\n')
+                result_text.insert(tk.END, f'Forks: {forks}\n')
+                result_text.insert(tk.END, f'Watchers: {watchers}\n')
+                result_text.insert(tk.END, f'License: {license}\n')
 
-            label = tk.Label(result_text, text='Open in Browser', fg=LINK_COLOR, cursor="hand2", font=(FONT_FAMILY, FONT_SIZE, "bold"))
-            label.bind("<Button-1>", lambda event, url=html_url: webbrowser.open_new_tab(url))
-            result_text.window_create(tk.END, window=label)
-            result_text.insert(tk.END, '\n\n')
-    else:
-        result_text.insert(tk.END, 'No repositories found for the given query.')
-    result_text.config(state="disabled")
+                label = tk.Label(result_text, text='Open in Browser', fg=LINK_COLOR, cursor="hand2", font=(FONT_FAMILY, FONT_SIZE, "bold"))
+                label.bind("<Button-1>", lambda event, url=html_url: webbrowser.open_new_tab(url))
+                result_text.window_create(tk.END, window=label)
+                result_text.insert(tk.END, '\n\n')
+        else:
+            result_text.insert(tk.END, 'No repositories found for the given query.')
+        result_text.config(state="disabled")
+    
+    search_thread = threading.Thread(target=search_and_update)
+    search_thread.start()
 
 # Create the main window
 window = tk.Tk()
@@ -128,4 +133,3 @@ content_frame.rowconfigure(1, weight=1)
 
 # Start the main loop
 window.mainloop()
-
