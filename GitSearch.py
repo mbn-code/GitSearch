@@ -3,6 +3,9 @@ from tkinter import ttk
 import webbrowser
 import requests
 import threading
+import os
+
+os.environ['TK_SILENCE_DEPRECATION'] = '1'
 
 # Font settings
 FONT_FAMILY = "Helvetica"
