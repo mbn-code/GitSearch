@@ -4,19 +4,80 @@ import webbrowser
 import requests
 
 # Font settings
-FONT_FAMILY = "Helvetica Neue"
+FONT_FAMILY = "Helvetica"
 FONT_SIZE = 12
 
 # Theme settings
 THEME_STYLE = "clam"
 
 def get_repositories(query, sort_by, language_filter):
-    # [Function code remains the same]
-    pass
+    url = 'https://api.github.com/search/repositories'
+    q = query
+    if language_filter:
+        q += f' language:{language_filter}'
+    params = {
+        'q': q,
+        'sort': sort_by if sort_by else 'best match',
+        'order': 'desc'
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+
+    if response.status_code == 200 and 'items' in data:
+        repositories = []
+        items = data['items']
+        for item in items:
+            repository = {
+                'title': item['name'],
+                'html_url': item['html_url'],
+                'description': item['description'],
+                'stars': item['stargazers_count'],
+                'language': item['language'],
+                'owner': item['owner']['login'],
+                'created_at': item['created_at'],
+                'forks': item['forks'],
+                'watchers': item['watchers']
+            }
+            repositories.append(repository)
+        return repositories
+    else:
+        return None
 
 def perform_search(sort_by=None):
-    # [Function code remains the same]
-    pass
+    query = entry.get()
+    language_filter = language_var.get()
+    repositories = get_repositories(query, sort_by, language_filter)
+    result_text.config(state="normal")
+    result_text.delete(1.0, tk.END)
+    if repositories:
+        for repository in repositories:
+            title = repository['title']
+            html_url = repository['html_url']
+            description = repository['description']
+            stars = repository['stars']
+            language = repository['language']
+            owner = repository['owner']
+            created_at = repository['created_at']
+            forks = repository['forks']
+            watchers = repository['watchers']
+
+            result_text.insert(tk.END, f'Title: {title}\n')
+            result_text.insert(tk.END, f'Description: {description}\n')
+            result_text.insert(tk.END, f'Stars: {stars}\n')
+            result_text.insert(tk.END, f'Language: {language}\n')
+            result_text.insert(tk.END, f'Owner: {owner}\n')
+            result_text.insert(tk.END, f'Created at: {created_at}\n')
+            result_text.insert(tk.END, f'Forks: {forks}\n')
+            result_text.insert(tk.END, f'Watchers: {watchers}\n')
+
+            label = tk.Label(result_text, text='Open in Browser', fg="blue", cursor="hand2", font=(FONT_FAMILY, FONT_SIZE, "bold"))
+            label.bind("<Button-1>", lambda event, url=html_url: webbrowser.open_new_tab(url))
+            result_text.window_create(tk.END, window=label)
+            result_text.insert(tk.END, '\n' + '-'*80 + '\n\n')
+    else:
+        result_text.insert(tk.END, 'No repositories found for the given query.')
+    result_text.config(state="disabled")
 
 # Create the main window
 window = tk.Tk()
@@ -26,24 +87,14 @@ window.title('GitHub Search')
 window.geometry("1000x700")
 window.resizable(True, True)
 
-# Set dark mode colors
-BACKGROUND_COLOR = "#1e1e1e"
-FOREGROUND_COLOR = "#ffffff"
-ACCENT_COLOR = "#0a84ff"
-
-# Configure the window background
-window.configure(bg=BACKGROUND_COLOR)
-
 # Create a style for the GUI elements
 style = ttk.Style()
 style.theme_use(THEME_STYLE)
-
-# Configure styles for dark mode
-style.configure('.', background=BACKGROUND_COLOR, foreground=FOREGROUND_COLOR, font=(FONT_FAMILY, FONT_SIZE))
-style.configure('TLabel', background=BACKGROUND_COLOR, foreground=FOREGROUND_COLOR)
-style.configure('TEntry', fieldbackground="#2c2c2e", foreground=FOREGROUND_COLOR, bordercolor="#3a3a3c")
-style.configure('TButton', background=ACCENT_COLOR, foreground=FOREGROUND_COLOR)
-style.map('TButton', background=[('active', '#0060df')])
+style.configure('TLabel', font=(FONT_FAMILY, FONT_SIZE))
+style.configure('TEntry', font=(FONT_FAMILY, FONT_SIZE))
+style.configure('TButton', font=(FONT_FAMILY, FONT_SIZE, "bold"))
+style.configure('TText', font=(FONT_FAMILY, FONT_SIZE))
+style.configure('TCombobox', font=(FONT_FAMILY, FONT_SIZE))
 
 # Create a frame to hold the content
 content_frame = ttk.Frame(window, padding=20)
@@ -61,7 +112,7 @@ language_label = ttk.Label(content_frame, text='Filter by language:')
 language_label.grid(row=0, column=2, sticky="w", pady=10, padx=10)
 
 language_var = tk.StringVar()
-language_combobox = ttk.Combobox(content_frame, textvariable=language_var, state='readonly')
+language_combobox = ttk.Combobox(content_frame, textvariable=language_var)
 language_combobox['values'] = ['', 'Python', 'JavaScript', 'Java', 'C++', 'C#', 'Go', 'Ruby', 'Swift']
 language_combobox.current(0)
 language_combobox.grid(row=0, column=3, sticky="we", pady=10, padx=10)
@@ -75,10 +126,6 @@ sort_var = tk.StringVar(value='')
 sort_frame = ttk.LabelFrame(content_frame, text='Sort Options')
 sort_frame.grid(row=2, column=0, columnspan=5, sticky="we", pady=10, padx=10)
 
-style.configure('TLabelframe', background=BACKGROUND_COLOR, foreground=FOREGROUND_COLOR)
-style.configure('TRadiobutton', background=BACKGROUND_COLOR, foreground=FOREGROUND_COLOR)
-style.map('TRadiobutton', background=[('active', BACKGROUND_COLOR)], foreground=[('active', ACCENT_COLOR)])
-
 sort_best = ttk.Radiobutton(sort_frame, text='Best Match', variable=sort_var, value='')
 sort_best.pack(side='left', padx=5)
 sort_stars = ttk.Radiobutton(sort_frame, text='Most Stars', variable=sort_var, value='stars')
@@ -90,7 +137,7 @@ sort_updated.pack(side='left', padx=5)
 result_frame = ttk.Frame(content_frame)
 result_frame.grid(row=1, column=0, columnspan=5, sticky='nsew', pady=(0, 10), padx=10)
 
-result_text = tk.Text(result_frame, wrap="word", state="disabled", bg=BACKGROUND_COLOR, fg=FOREGROUND_COLOR, font=(FONT_FAMILY, FONT_SIZE))
+result_text = tk.Text(result_frame, wrap="word", state="disabled", font=(FONT_FAMILY, FONT_SIZE))
 result_text.pack(side='left', fill='both', expand=True)
 
 scrollbar = ttk.Scrollbar(result_frame, orient='vertical', command=result_text.yview)
