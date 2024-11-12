@@ -21,28 +21,35 @@ def get_repositories(query, sort_by, language_filter):
         'order': 'desc'
     }
 
-    response = requests.get(url, params=params)
-    data = response.json()
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        return None
 
     if response.status_code == 200 and 'items' in data:
         repositories = []
         items = data['items']
+        if not items:
+            return []
         for item in items:
             repository = {
-                'title': item['name'],
-                'html_url': item['html_url'],
-                'description': item['description'],
-                'stars': item['stargazers_count'],
-                'language': item['language'],
-                'owner': item['owner']['login'],
-                'created_at': item['created_at'],
-                'forks': item['forks'],
-                'watchers': item['watchers']
+                'title': item.get('name', 'N/A'),
+                'html_url': item.get('html_url', ''),
+                'description': item.get('description', 'No description provided.'),
+                'stars': item.get('stargazers_count', 0),
+                'language': item.get('language', 'Unknown'),
+                'owner': item.get('owner', {}).get('login', 'Unknown'),
+                'created_at': item.get('created_at', 'Unknown'),
+                'forks': item.get('forks', 0),
+                'watchers': item.get('watchers', 0)
             }
             repositories.append(repository)
         return repositories
     else:
-        return None
+        return []
 
 def perform_search(sort_by=None):
     query = entry.get()
@@ -51,7 +58,7 @@ def perform_search(sort_by=None):
     result_text.config(state="normal")
     result_text.delete(1.0, tk.END)
     if repositories:
-        for repository in repositories:
+        for i, repository in enumerate(repositories):
             title = repository['title']
             html_url = repository['html_url']
             description = repository['description']
@@ -59,7 +66,6 @@ def perform_search(sort_by=None):
             language = repository['language']
             owner = repository['owner']
             created_at = repository['created_at']
-            forks = repository['forks']
             watchers = repository['watchers']
 
             result_text.insert(tk.END, f'Title: {title}\n')
@@ -68,13 +74,12 @@ def perform_search(sort_by=None):
             result_text.insert(tk.END, f'Language: {language}\n')
             result_text.insert(tk.END, f'Owner: {owner}\n')
             result_text.insert(tk.END, f'Created at: {created_at}\n')
-            result_text.insert(tk.END, f'Forks: {forks}\n')
             result_text.insert(tk.END, f'Watchers: {watchers}\n')
 
-            label = tk.Label(result_text, text='Open in Browser', fg="blue", cursor="hand2", font=(FONT_FAMILY, FONT_SIZE, "bold"))
-            label.bind("<Button-1>", lambda event, url=html_url: webbrowser.open_new_tab(url))
-            result_text.window_create(tk.END, window=label)
-            result_text.insert(tk.END, '\n' + '-'*80 + '\n\n')
+            tag_name = f'link_{i}'
+            result_text.tag_bind(tag_name, '<Button-1>', lambda _event, url=html_url: webbrowser.open_new_tab(url))
+            result_text.tag_config(tag_name, foreground="blue", underline=True)
+            result_text.tag_bind(tag_name, '<Button-1>', lambda event, url=html_url: webbrowser.open_new_tab(url))
     else:
         result_text.insert(tk.END, 'No repositories found for the given query.')
     result_text.config(state="disabled")
