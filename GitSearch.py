@@ -1,7 +1,11 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import webbrowser
 import requests
+from functools import lru_cache
+from time import sleep
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 # Font settings
 FONT_FAMILY = "Helvetica"
@@ -10,7 +14,9 @@ FONT_SIZE = 12
 # Theme settings
 THEME_STYLE = "clam"
 
-def get_repositories(query, sort_by, language_filter):
+# Add caching for API requests
+@lru_cache(maxsize=100)
+def cached_get_repositories(query, sort_by, language_filter, page=1):
     url = 'https://api.github.com/search/repositories'
     q = query
     if language_filter:
@@ -18,71 +24,93 @@ def get_repositories(query, sort_by, language_filter):
     params = {
         'q': q,
         'sort': sort_by if sort_by else 'best match',
-        'order': 'desc'
+        'order': 'desc',
+        'page': page,
+        'per_page': 30
     }
 
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-        return None
+    # Add retry logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            
+            # Handle rate limiting
+            if response.status_code == 403:
+                reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+                wait_time = min(reset_time - time.time(), 60)
+                if wait_time > 0:
+                    sleep(wait_time)
+                continue
+                
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if attempt == max_retries - 1:
+                print(f"Failed after {max_retries} attempts: {e}")
+                return None
+            sleep(2 ** attempt)  # Exponential backoff
 
-    if response.status_code == 200 and 'items' in data:
-        repositories = []
-        items = data['items']
-        if not items:
-            return []
-        for item in items:
-            repository = {
-                'title': item.get('name', 'N/A'),
-                'html_url': item.get('html_url', ''),
-                'description': item.get('description', 'No description provided.'),
-                'stars': item.get('stargazers_count', 0),
-                'language': item.get('language', 'Unknown'),
-                'owner': item.get('owner', {}).get('login', 'Unknown'),
-                'created_at': item.get('created_at', 'Unknown'),
-                'forks': item.get('forks', 0),
-                'watchers': item.get('watchers', 0)
-            }
-            repositories.append(repository)
-        return repositories
-    else:
-        return []
+def batch_update_results(result_text, repositories):
+    result_text.config(state="normal")
+    result_text.delete(1.0, tk.END)
+    
+    # Prepare all text content first
+    content = []
+    for i, repo in enumerate(repositories):
+        try:
+            repo_text = (
+                f'Title: {repo.get("name", "N/A")}\n'
+                f'Description: {repo.get("description", "No description provided.")}\n'
+                f'Stars: {repo.get("stargazers_count", 0)}\n'
+                f'Language: {repo.get("language", "Unknown")}\n'
+                f'Owner: {repo.get("owner", {}).get("login", "Unknown")}\n'
+                f'Created at: {repo.get("created_at", "Unknown")}\n'
+                f'Watchers: {repo.get("watchers", 0)}\n\n'
+            )
+            content.append((repo_text, repo.get('html_url', '')))
+        except Exception as e:
+            print(f"Error processing repository: {e}")
+            continue
+
+    # Batch insert all content
+    for i, (text, url) in enumerate(content):
+        result_text.insert(tk.END, text)
+        if url:  # Only create link if URL exists
+            tag_name = f'link_{i}'
+            start_idx = f"{float(i*8 + 1)}"  # Account for multi-line entries
+            end_idx = f"{float(i*8 + 1)} lineend"
+            result_text.tag_add(tag_name, start_idx, end_idx)
+            result_text.tag_config(tag_name, foreground="blue", underline=True)
+            result_text.tag_bind(tag_name, '<Button-1>', lambda e, url=url: webbrowser.open_new_tab(url))
+
+    result_text.config(state="disabled")
 
 def perform_search(sort_by=None):
     query = entry.get()
+    if not query.strip():
+        messagebox.showwarning("Warning", "Please enter a search query")
+        return
+        
     language_filter = language_var.get()
-    repositories = get_repositories(query, sort_by, language_filter)
-    result_text.config(state="normal")
-    result_text.delete(1.0, tk.END)
-    if repositories:
-        for i, repository in enumerate(repositories):
-            title = repository['title']
-            html_url = repository['html_url']
-            description = repository['description']
-            stars = repository['stars']
-            language = repository['language']
-            owner = repository['owner']
-            created_at = repository['created_at']
-            watchers = repository['watchers']
-
-            result_text.insert(tk.END, f'Title: {title}\n')
-            result_text.insert(tk.END, f'Description: {description}\n')
-            result_text.insert(tk.END, f'Stars: {stars}\n')
-            result_text.insert(tk.END, f'Language: {language}\n')
-            result_text.insert(tk.END, f'Owner: {owner}\n')
-            result_text.insert(tk.END, f'Created at: {created_at}\n')
-            result_text.insert(tk.END, f'Watchers: {watchers}\n')
-
-            tag_name = f'link_{i}'
-            result_text.tag_bind(tag_name, '<Button-1>', lambda _event, url=html_url: webbrowser.open_new_tab(url))
-            result_text.tag_config(tag_name, foreground="blue", underline=True)
-            result_text.tag_bind(tag_name, '<Button-1>', lambda event, url=html_url: webbrowser.open_new_tab(url))
-    else:
-        result_text.insert(tk.END, 'No repositories found for the given query.')
-    result_text.config(state="disabled")
+    
+    # Use ThreadPoolExecutor for async loading
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(cached_get_repositories, query, sort_by, language_filter)
+        try:
+            repositories = future.result(timeout=15)
+            if repositories and 'items' in repositories:
+                batch_update_results(result_text, repositories['items'])
+            else:
+                result_text.config(state="normal")
+                result_text.delete(1.0, tk.END)
+                result_text.insert(tk.END, 'No repositories found for the given query.')
+                result_text.config(state="disabled")
+        except Exception as e:
+            result_text.config(state="normal")
+            result_text.delete(1.0, tk.END)
+            result_text.insert(tk.END, f'An error occurred: {str(e)}')
+            result_text.config(state="disabled")
 
 # Create the main window
 window = tk.Tk()
